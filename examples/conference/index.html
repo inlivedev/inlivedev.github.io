@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Conference</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+        }
+        #app {
+            width: 100%;
+            min-height: 100vh;
+            margin:1em;
+        }
+        main {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        aside {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        video{
+            background-color: black;
+            margin: 0.25em;
+        }
+    </style>
+    <script defer>
+        let pc = null;
+
+        let joined = false;
+        const rooms ={ 
+            id:'',
+            name:''
+        }
+
+        const apiHost= 'https://api.inlive.app'
+        // const apiHost= 'http://localhost:8080'
+        function toggleJoin(){
+            if(joined){
+                leave();
+                return
+            }
+
+            join();
+        }
+
+        async function join(){
+            const btn = document.querySelector('button')
+            btn.disabled = true;
+            btn.textContent = 'Leave';
+            btn.disabled = false;
+            joined = true;
+            let roomid = new URL(location.href).searchParams.get('roomid');
+            let joinurl = '';
+            if (roomid == null){
+                const room = await createRoom('test');
+                roomid = room.id;
+                rooms.id = room.id;
+                rooms.name = room.name;
+                joinurl = location.href + `?roomid=${roomid}`
+            } else {
+                joinurl = location.href
+            }
+           
+            document.querySelector('#info').innerHTML = `join : <a href="${joinurl}">${joinurl}</a>`
+
+            const clientid = await registerClient(roomid);
+
+
+            await joinRoom(roomid,clientid)
+
+            waitRenegotiate(roomid,clientid)
+            
+            
+        }
+
+        function leave(){
+            const btn = document.querySelector('button')
+            btn.disabled = false;
+            btn.textContent = 'Join';
+            joined = false;
+        }
+
+        async function createRoom(name){
+            const resp = await fetch(`${apiHost}/v1/rooms/create`,{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json'
+                },
+                body:JSON.stringify({
+                    name:name
+                })
+            })
+
+            const respJSON = await resp.json();
+
+            return respJSON.data
+        }
+
+        async function registerClient(roomid){
+            const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/register`,{
+                method:'POST',
+                headers:{
+                    'Content-Type':'application/json'
+                },
+                body:JSON.stringify({
+                    uid:Math.floor(Math.random() * 1000)
+                })
+            })
+
+            const respJSON = await resp.json();
+
+            return respJSON.data.client_id
+        }
+
+        function joinRoom(roomid,clientid){
+            let resolved = false;
+            const promise = new Promise(async resolve => {
+                const stream= await getMedia({
+                    video:true,
+                    audio:true
+                })
+
+                video = document.querySelector('#local');
+                video.srcObject = stream;
+
+                pc = new RTCPeerConnection({
+                    iceServers: [
+                        {
+                            urls: "turn:turn.inlive.app:3478",
+                            username: "inlive",
+                            credential: "inlivesdkturn"
+                        },
+                        {
+                            urls: "stun:turn.inlive.app:3478",
+                        },
+                        // {
+                        //     urls: "stun:stun.l.google.com:19302",
+                        // },
+                    ]
+                });
+
+                pc.oniceconnectionstatechange = (ev)=>{
+                    console.log('ice connection state change',ev)
+                }
+
+                pc.ontrack = (ev)=>{
+                    console.log('on track',ev)
+                    if (ev.track.kind == 'video'){
+                        const video = document.createElement('video');
+                        video.srcObject = ev.streams[0];
+                        video.autoplay = true;
+                        video.playsinline = true;
+                        video.muted = true;
+                        document.querySelector('main').appendChild(video);
+                    } 
+                }
+                
+                pc.onicecandidate = async (ev)=>{
+                        if(ev.candidate){
+                            // send ice
+                            const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/candidate/${clientid}`,{
+                                method:'POST',
+                                headers:{
+                                    'Content-Type':'application/json'
+                                },
+                                body:JSON.stringify(ev.candidate.toJSON())
+                            })
+
+                            if (!resp.ok){
+                                console.log('error',resp)
+                            }
+                        }
+                }
+
+                pc.onnegotiationneeded = async (ev)=>{
+                    const offer = pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    
+                    const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/join/${clientid}`,{
+                        method:'POST',
+                        headers:{
+                            'Content-Type':'application/json'
+                        },
+                        body:JSON.stringify(pc.localDescription.toJSON())
+                    })
+
+                    const respJSON = await resp.json();
+
+                    const answer = respJSON.data.answer
+
+                    const sdpAnswer = new RTCSessionDescription(answer);
+
+                    await pc.setRemoteDescription(sdpAnswer);
+
+                    resolve();
+
+                    resolved = true;
+                }
+            
+
+                stream.getTracks().forEach((track)=>{
+                    pc.addTrack(track,stream);
+                })
+            });
+
+            return promise
+        }
+
+        async function getMedia(constraints) {
+            let stream = null;
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                /* use the stream */
+            } catch (err) {
+                /* handle the error */
+            }
+            return stream
+        }
+
+        function waitRenegotiate(roomid,clientid){
+            const sse = new EventSource(`${apiHost}/v1/rooms/${roomid}/events/${clientid}`);
+            sse.addEventListener('offer',async (ev)=>{
+                const offer = JSON.parse(ev.data);
+                
+                if (pc !==null){
+                    await pc.setRemoteDescription(offer);
+                    const answer = pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/renegotiate/${clientid}`,{
+                        method:'PUT',
+                        headers:{
+                            'Content-Type':'application/json'
+                        },
+                        body:JSON.stringify(pc.localDescription.toJSON())
+                    })
+                }
+            })
+
+            sse.addEventListener('candidate',async (ev)=>{
+                const candidate = new RTCIceCandidate(JSON.parse(ev.data));
+                pc.addIceCandidate(candidate);
+            })
+        }
+    </script>
+</head>
+<body>
+    <div id="app">
+        <main> 
+            <video id="local" autoplay playsinline muted></video>
+        </main>
+       <aside>
+            <div><button onclick="toggleJoin()">Join</button></div>
+            <div id="info"></div>
+        </aside>
+    </div>
+</html>
