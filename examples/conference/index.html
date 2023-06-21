@@ -35,6 +35,7 @@
     </style>
     <script defer>
         let pc = null;
+        const streams = {}
 
         let joined = false;
         const rooms ={ 
@@ -42,7 +43,7 @@
             name:''
         }
 
-        const apiHost= 'https://api.inlive.app'
+        const apiHost= 'https://hub.inlive.app'
         // const apiHost= 'http://localhost:8080'
         function toggleJoin(){
             if(joined){
@@ -83,11 +84,23 @@
             
         }
 
-        function leave(){
+        async function leave(){
             const btn = document.querySelector('button')
             btn.disabled = false;
             btn.textContent = 'Join';
             joined = false;
+            pc.close();
+            document.querySelectorAll('video.remote').forEach((video)=>{
+                video.remove();
+            })
+
+            const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/candidate/${clientid}`,{
+                                method:'POST',
+                                headers:{
+                                    'Content-Type':'application/json'
+                                },
+                                body:JSON.stringify(ev.candidate.toJSON())
+                            })
         }
 
         async function createRoom(name){
@@ -155,14 +168,32 @@
 
                 pc.ontrack = (ev)=>{
                     console.log('on track',ev)
-                    if (ev.track.kind == 'video'){
-                        const video = document.createElement('video');
-                        video.srcObject = ev.streams[0];
-                        video.autoplay = true;
-                        video.playsinline = true;
-                        video.muted = true;
-                        document.querySelector('main').appendChild(video);
-                    } 
+                    const stream = ev.streams[0]
+                    if (stream.id in streams){
+                        return
+                    }
+
+                    streams[stream.id] = stream;
+                   
+                    const video = document.createElement('video');
+                    video.setAttribute('class','remote')
+                    video.srcObject = stream;
+                    video.autoplay = true;
+                    video.playsinline = true;
+                    video.muted = false;
+                    document.querySelector('main').appendChild(video);
+
+                    ev.track.onended = ()=>{
+                        console.log('track ended')
+                        video.remove();
+                    }
+
+                    stream.addEventListener("removetrack", (event) => {
+                        if(event.target.id in streams && event.target.getTracks().length == 0){
+                            video.remove();
+                            delete streams[event.target.id];
+                        }
+                    });
                 }
                 
                 pc.onicecandidate = async (ev)=>{
