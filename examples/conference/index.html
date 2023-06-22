@@ -43,8 +43,8 @@
             name:''
         }
 
-        const apiHost= 'https://hub.inlive.app'
-        // const apiHost= 'http://localhost:8080'
+        // const apiHost= 'https://hub.inlive.app'
+        const apiHost= 'http://localhost:8080'
         function toggleJoin(){
             if(joined){
                 leave();
@@ -80,8 +80,6 @@
             await joinRoom(roomid,clientid)
 
             waitRenegotiate(roomid,clientid)
-            
-            
         }
 
         async function leave(){
@@ -94,8 +92,8 @@
                 video.remove();
             })
 
-            const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/candidate/${clientid}`,{
-                                method:'POST',
+            const resp = await fetch(`${apiHost}/v1/rooms/${roomid}/leave/${clientid}`,{
+                                method:'DELETE',
                                 headers:{
                                     'Content-Type':'application/json'
                                 },
