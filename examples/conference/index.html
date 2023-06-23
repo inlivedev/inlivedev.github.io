@@ -43,8 +43,8 @@
             name:''
         }
 
-        // const apiHost= 'https://hub.inlive.app'
-        const apiHost= 'http://localhost:8080'
+        const apiHost= 'https://hub.inlive.app'
+        // const apiHost= 'http://localhost:8080'
         function toggleJoin(){
             if(joined){
                 leave();
@@ -55,7 +55,7 @@
         }
 
         async function join(){
-            const btn = document.querySelector('button')
+            const btn = document.querySelector('button#togglejoin')
             btn.disabled = true;
             btn.textContent = 'Leave';
             btn.disabled = false;
@@ -68,6 +68,7 @@
                 rooms.id = room.id;
                 rooms.name = room.name;
                 joinurl = location.href + `?roomid=${roomid}`
+                setCloseRoom();
             } else {
                 joinurl = location.href
             }
@@ -79,11 +80,31 @@
 
             await joinRoom(roomid,clientid)
 
-            waitRenegotiate(roomid,clientid)
+            waitEvents(roomid,clientid)
+        }
+
+        function setCloseRoom(){
+            const button = document.createElement('button');
+            button.setAttribute('id','closeroom');
+            button.textContent = 'Close Room';
+            button.onclick = async ()=>{
+                const resp = await fetch(`${apiHost}/v1/rooms/${rooms.id}`,{
+                    method:'DELETE',
+                    headers:{
+                        'Content-Type':'application/json'
+                    }
+                })
+
+                if (resp.ok){
+                    alert('room closed')
+                }
+            }
+
+            document.querySelector('aside').appendChild(button);
         }
 
         async function leave(){
-            const btn = document.querySelector('button')
+            const btn = document.querySelector('button#togglejoin')
             btn.disabled = false;
             btn.textContent = 'Join';
             joined = false;
@@ -257,7 +278,7 @@
             return stream
         }
 
-        function waitRenegotiate(roomid,clientid){
+        function waitEvents(roomid,clientid){
             const sse = new EventSource(`${apiHost}/v1/rooms/${roomid}/events/${clientid}`);
             sse.addEventListener('offer',async (ev)=>{
                 const offer = JSON.parse(ev.data);
@@ -289,7 +310,7 @@
             <video id="local" autoplay playsinline muted></video>
         </main>
        <aside>
-            <div><button onclick="toggleJoin()">Join</button></div>
+            <div><button id="togglejoin" onclick="toggleJoin()">Join</button></div>
             <div id="info"></div>
         </aside>
     </div>
