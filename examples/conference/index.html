@@ -88,8 +88,8 @@
             button.setAttribute('id','closeroom');
             button.textContent = 'Close Room';
             button.onclick = async ()=>{
-                const resp = await fetch(`${apiHost}/v1/rooms/${rooms.id}`,{
-                    method:'DELETE',
+                const resp = await fetch(`${apiHost}/v1/rooms/${rooms.id}/end`,{
+                    method:'PUT',
                     headers:{
                         'Content-Type':'application/json'
                     }
