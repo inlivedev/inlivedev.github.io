@@ -51,12 +51,12 @@
         const apiVersion = 'v1'
         const streams = new Map();
 
-        let joinurl = '';
+        let joinUrl = '';
         let peer = null;
         let joined = false;
 
-        function toggleJoin(){
-            if(!joined){
+        function toggleJoin() {
+            if (!joined) {
                 join();
             } else {
                 leave();
@@ -68,7 +68,7 @@
             room.name = new URL(location.href).searchParams.get('roomName');
 
             if (!room.id) {
-                const newRoom = await createRoom('A new room');
+                const newRoom = await createRoom('My room');
                 room.id = newRoom.id;
                 room.name = newRoom.name;
             }
@@ -77,19 +77,19 @@
 
             client.id = await registerClient(room.id);
 
-            const mediaStream = await captureUserMedia({
+            const mediaStream = await getUserMediaStream({
                 video: true,
                 audio: true
             });
 
-            await establishPeerConnection(room.id, client.id, mediaStream);
+            establishPeerConnection(room.id, client.id, mediaStream);
             broadcastMedia(mediaStream);
             toggleJoinButton();
 
             document.querySelector('#info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
         }
 
-        async function captureUserMedia(constraints) {
+        async function getUserMediaStream(constraints) {
             try {
                 const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 return mediaStream;
