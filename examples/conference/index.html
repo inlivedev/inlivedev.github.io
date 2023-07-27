@@ -47,7 +47,7 @@
             id: null,
         }
 
-        const apiHost = 'https://hub.inlive.app';
+        const apiOrigin = 'https://hub.inlive.app';
         const apiVersion = 'v1'
         const streams = new Map();
 
@@ -99,7 +99,7 @@
         }
 
         async function createRoom(roomName = '') {
-            const response = await fetch(`${apiHost}/${apiVersion}/rooms/create`, {
+            const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/create`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -115,7 +115,7 @@
         }
 
         async function registerClient(roomId, uid = Math.floor(Math.random() * 1000)) {
-            const response = await fetch(`${apiHost}/${apiVersion}/rooms/${roomId}/register`, {
+            const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type':'application/json'
@@ -155,7 +155,7 @@
                 const offer = await peer.createOffer();
                 await peer.setLocalDescription(offer);
 
-                const response = await fetch(`${apiHost}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
+                const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type':'application/json'
@@ -173,7 +173,7 @@
                 const candidate = event.candidate;
 
                 if (candidate) {
-                    fetch(`${apiHost}/${apiVersion}/rooms/${roomId}/candidate/${clientId}`, {
+                    fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/candidate/${clientId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type':'application/json'
@@ -214,7 +214,7 @@
                 });
             });
 
-            const sse = new EventSource(`${apiHost}/${apiVersion}/rooms/${roomId}/events/${clientId}`);
+            const sse = new EventSource(`${apiOrigin}/${apiVersion}/rooms/${roomId}/events/${clientId}`);
 
             sse.addEventListener('candidate', async (event) => {
                 if (!peer || !peer.remoteDescription) return;
@@ -231,7 +231,7 @@
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
 
-                fetch(`${apiHost}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
+                fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type':'application/json'
@@ -269,7 +269,7 @@
         }
 
         async function leaveRoom() {
-            await fetch(`${apiHost}/${apiVersion}/rooms/${room.id}/leave/${client.id}`, {
+            await fetch(`${apiOrigin}/${apiVersion}/rooms/${room.id}/leave/${client.id}`, {
                 method:'DELETE',
             });
 
