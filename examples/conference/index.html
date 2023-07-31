@@ -83,7 +83,7 @@
             });
 
             establishPeerConnection(room.id, client.id, mediaStream);
-            broadcastMedia(mediaStream);
+            displayUserMediaStream(mediaStream);
             toggleJoinButton();
 
             document.querySelector('#info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
@@ -173,7 +173,7 @@
                 const candidate = event.candidate;
 
                 if (candidate) {
-                    fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/candidate/${clientId}`, {
+                    await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/candidate/${clientId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type':'application/json'
@@ -220,7 +220,7 @@
                 if (!peer || !peer.remoteDescription) return;
 
                 const candidate = new RTCIceCandidate(JSON.parse(event.data));
-                peer.addIceCandidate(candidate);
+                await peer.addIceCandidate(candidate);
             });
 
             sse.addEventListener('offer', async (event) => {
@@ -246,51 +246,55 @@
             });
         }
 
-        function broadcastMedia(mediaStream) {
+        function displayUserMediaStream(mediaStream) {
             const localVideo = document.querySelector('video#local');
             localVideo.srcObject = mediaStream;
         }
 
         function toggleJoinButton() {
+            const button = document.querySelector('button#togglejoin');
+
             if (joined) {
-                const button = document.querySelector('button#togglejoin');
                 button.textContent = 'Join';
                 joined = false;
             } else {
-                const button = document.querySelector('button#togglejoin');
                 button.textContent = 'Leave';
                 joined = true;
             }
         }
 
         async function leave() {
-            await leaveRoom();
+            await leaveRoom(room.id, client.id);
             toggleJoinButton();
         }
 
-        async function leaveRoom() {
-            await fetch(`${apiOrigin}/${apiVersion}/rooms/${room.id}/leave/${client.id}`, {
-                method:'DELETE',
+        async function leaveRoom(roomId, clientId) {
+            const leaveResponse = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/leave/${clientId}`, {
+                method: 'DELETE',
             });
 
-            document.querySelectorAll('video.remote').forEach((video) => {
-                video.remove();
+            peer.getSenders().forEach((sender) => {
+                if (sender.track) {
+                    sender.track.enabled = false;
+                    sender.track.stop();
+                }
             });
 
             const localVideo = document.querySelector('video#local');
             localVideo.srcObject = null;
 
-            peer.getSenders().forEach((sender) => {
-                sender.track.enabled = false;
-                sender.track.stop();
-                peer.removeTrack(sender);
-            });
-
+            // when local peer is closed, the ended event will be triggered
             peer.close();
             peer = null;
 
             joinUrl = '';
             document.querySelector('#info').innerHTML = '';
+        }
+
+        async function endRoom(roomId) {
+            fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/end`, {
+                method: 'PUT',
+            });
         }
     </script>
 </head>
