@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Simple Video Conference Room</title>
@@ -11,22 +12,26 @@
             font-family: sans-serif;
             font-size: 1rem;
         }
+
         #app {
             padding: 1rem;
         }
+
         main {
             width: 100%;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(576px, 1fr));
             gap: 1rem;
         }
-        video{
+
+        video {
             width: 100%;
             height: auto;
             object-fit: cover;
             background-color: black;
             border-radius: 0.5rem;
         }
+
         aside {
             margin-top: 2rem;
             width: 100%;
@@ -118,7 +123,7 @@
             const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/register`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type':'application/json'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     uid: uid
@@ -148,25 +153,31 @@
             });
 
             peer.addEventListener('iceconnectionstatechange', (event) => {
-                console.log('ice connection state change to ', peer.iceConnectionState);
+                console.log('ice connection state changes to ', peer.iceConnectionState);
             });
 
             peer.addEventListener('negotiationneeded', async () => {
                 const offer = await peer.createOffer();
                 await peer.setLocalDescription(offer);
 
-                const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type':'application/json'
-                    },
-                    body: JSON.stringify(peer.localDescription.toJSON())
+                const allowNegotiateResponse = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/isallownegotiate/${clientId}`, {
+                    method: 'POST',
                 });
 
-                const responseJSON = await response.json();
-                const answer = responseJSON.data.answer;
-                const sdpAnswer = new RTCSessionDescription(answer);
-                await peer.setRemoteDescription(sdpAnswer);
+                if (allowNegotiateResponse.ok) {
+                    const negotiateResponse = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(peer.localDescription.toJSON())
+                    });
+
+                    const negotiateJSON = await negotiateResponse.json();
+                    const answer = negotiateJSON.data.answer;
+                    const sdpAnswer = new RTCSessionDescription(answer);
+                    await peer.setRemoteDescription(sdpAnswer);
+                }
             });
 
             peer.addEventListener('icecandidate', async (event) => {
@@ -176,7 +187,7 @@
                     await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/candidate/${clientId}`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type':'application/json'
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(candidate.toJSON())
                     });
@@ -234,7 +245,7 @@
                 fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type':'application/json'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(peer.localDescription.toJSON())
                 });
@@ -298,12 +309,13 @@
         }
     </script>
 </head>
+
 <body>
     <div id="app">
-       <main>
+        <main>
             <video id="local" autoplay playsinline muted></video>
-       </main>
-       <aside>
+        </main>
+        <aside>
             <div>
                 <button id="togglejoin" onclick="toggleJoin()">Join</button>
             </div>
@@ -311,4 +323,5 @@
         </aside>
     </div>
 </body>
+
 </html>
