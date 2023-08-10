@@ -157,14 +157,16 @@
             });
 
             peer.addEventListener('negotiationneeded', async () => {
-                const offer = await peer.createOffer();
-                await peer.setLocalDescription(offer);
-
                 const allowNegotiateResponse = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/isallownegotiate/${clientId}`, {
                     method: 'POST',
                 });
 
                 if (allowNegotiateResponse.ok) {
+                    if (!peer) return;
+
+                    const offer = await peer.createOffer();
+                    await peer.setLocalDescription(offer);
+
                     const negotiateResponse = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/negotiate/${clientId}`, {
                         method: 'PUT',
                         headers: {
