@@ -79,7 +79,7 @@
                 video: true,
                 audio: true
             }).catch((error) => {
-                console.error(error)
+                console.error(error);
             });
 
             document.getElementById('local-video').srcObject = mediaStream;
@@ -94,19 +94,18 @@
             joinUrl = encodeURI(location.origin + `?roomID=${roomID}`);
 
             const client = await room.createClient(roomID);
-            clientID = client.data.clientId
+            clientID = client.data.clientId;
 
             peer = await room.createPeer(roomID, clientID);
-
             peer.addStream(mediaStream.id, {
                 clientId: clientID,
-                name: 'client A',
+                name: 'local client',
                 origin: 'local',
                 source: 'media',
                 mediaStream: mediaStream
             });
 
-            document.getElementById('info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
+            document.getElementById('info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`;
         }
 
         async function leave() {
@@ -115,7 +114,7 @@
 
             document.getElementById('local-video').srcObject = null;
             joinUrl = '';
-            document.querySelector('#info').innerHTML = '';
+            document.getElementById('info').innerHTML = '';
         }
 
         room.on(room.event.STREAM_AVAILABLE, ({ stream }) => {
@@ -127,7 +126,7 @@
             video.muted = false;
             video.autoplay = true;
             video.srcObject = stream.mediaStream;
-            video.setAttribute('id', `video-${stream.id}`)
+            video.setAttribute('id', `video-${stream.id}`);
 
             document.querySelector('main').appendChild(video);
         });
