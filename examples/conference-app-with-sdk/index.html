@@ -91,7 +91,7 @@
                 roomID = newRoom.data.roomId;
             }
 
-            joinUrl = encodeURI(window.location.href + `?roomID=${roomID}`);
+            joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
 
             const client = await room.createClient(roomID);
             clientID = client.data.clientId;
