@@ -84,14 +84,14 @@
 
             document.getElementById('local-video').srcObject = mediaStream;
 
-            roomID = new URL(location.href).searchParams.get('roomID');
+            roomID = new URL(window.location.href).searchParams.get('roomID');
 
             if (!roomID) {
                 const newRoom = await room.createRoom('My room');
                 roomID = newRoom.data.roomId;
             }
 
-            joinUrl = encodeURI(location.origin + `?roomID=${roomID}`);
+            joinUrl = encodeURI(window.location.href + `?roomID=${roomID}`);
 
             const client = await room.createClient(roomID);
             clientID = client.data.clientId;
