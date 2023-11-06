@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <title>Video Conference Room with inLive JavaScript SDK</title>
@@ -43,38 +42,80 @@
         }
     </style>
 </head>
-
 <body>
     <div id="app">
         <main>
             <video id="local-video" autoplay playsinline muted></video>
         </main>
         <aside>
-            <div>
-                <button id="toggle-join-btn">Join</button>
-            </div>
+            <button id="toggle-join-btn">Join</button>
             <div id="info"></div>
         </aside>
     </div>
     <script type="module">
         import { Room } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.10.2/dist/room.js'
 
+        const room = Room();
         let roomID = '';
-        let roomName = '';
         let clientID = '';
         let peer = null;
         let joinUrl = '';
         let joined = false;
 
-        document.getElementById('toggle-join-btn').addEventListener('click', () => {
-            if (!joined) {
-                join();
-            } else {
+        document.getElementById('toggle-join-btn').addEventListener('click', function(event) {
+            if (joined) {
                 leave();
+                event.target.textContent = 'Join';
+                joined = false;
+            } else {
+                join();
+                event.target.textContent = 'Leave';
+                joined = true;
             }
         });
 
-        const room = Room();
+        async function join() {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            }).catch((error) => {
+                console.error(error);
+            });
+
+            document.getElementById('local-video').srcObject = mediaStream;
+
+            roomID = new URL(window.location.href).searchParams.get('roomID');
+
+            if (!roomID) {
+                const newRoom = await room.createRoom('My room');
+                roomID = newRoom.data.roomId;
+            }
+
+            joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
+
+            const client = await room.createClient(roomID);
+            clientID = client.data.clientId;
+
+            peer = await room.createPeer(roomID, clientID);
+            peer.addStream(mediaStream.id, {
+                clientId: clientID,
+                name: 'local client',
+                origin: 'local',
+                source: 'media',
+                mediaStream: mediaStream
+            });
+
+            document.getElementById('info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`;
+        }
+
+        async function leave() {
+            await room.leaveRoom(roomID, clientID, false);
+            peer.disconnect();
+
+            document.getElementById('local-video').srcObject = null;
+            joinUrl = '';
+            document.getElementById('info').innerHTML = '';
+        }
 
         room.on(room.event.STREAM_AVAILABLE, ({ stream }) => {
             if (stream.origin === 'local' && stream.source === 'media') return;
@@ -83,12 +124,12 @@
             video.classList.add('remote');
             video.playsInline = true;
             video.muted = false;
+            video.autoplay = true;
             video.srcObject = stream.mediaStream;
-            video.setAttribute('id', `video-${stream.id}`)
-            video.play();
+            video.setAttribute('id', `video-${stream.id}`);
 
             document.querySelector('main').appendChild(video);
-        })
+        });
 
         room.on(room.event.STREAM_REMOVED, ({ stream }) => {
             const videoElement = document.getElementById(`video-${stream.id}`);
@@ -96,73 +137,7 @@
             if (videoElement) {
                 videoElement.remove();
             }
-        })
-
-        function toggleJoinButton() {
-            const button = document.getElementById('toggle-join-btn');
-
-            if (joined) {
-                button.textContent = 'Join';
-                joined = false;
-            } else {
-                button.textContent = 'Leave';
-                joined = true;
-            }
-        }
-
-        async function join() {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            }).catch((error) => {
-                console.error(error)
-            })
-
-            document.getElementById('local-video').srcObject = mediaStream;
-
-            roomID = new URL(location.href).searchParams.get('roomID');
-            roomName = new URL(location.href).searchParams.get('roomName');
-
-            if (!roomID) {
-                const newRoom = await room.createRoom('My room');
-                roomID = newRoom.data.roomId;
-                roomName = newRoom.data.roomName;
-            }
-
-            joinUrl = encodeURI(location.origin + `?roomID=${roomID}&roomName=${roomName}`);
-
-            const client = await room.createClient(roomID);
-            clientID = client.data.clientId
-
-            peer = await room.createPeer(roomID, clientID);
-
-            peer.addStream(mediaStream.id, {
-                clientId: clientID,
-                name: 'client A',
-                origin: 'local',
-                source: 'media',
-                mediaStream: mediaStream
-            })
-
-            toggleJoinButton()
-
-            document.querySelector('#info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
-        }
-
-        async function leave() {
-            await leaveRoom();
-            toggleJoinButton();
-        }
-
-        async function leaveRoom() {
-            const response = await room.leaveRoom(roomID, clientID, false);
-            peer.disconnect();
-
-            document.getElementById('local-video').srcObject = null;
-            joinUrl = '';
-            document.querySelector('#info').innerHTML = '';
-        }
+        });
     </script>
 </body>
-
 </html>
