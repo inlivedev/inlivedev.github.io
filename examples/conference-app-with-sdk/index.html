@@ -53,9 +53,14 @@
         </aside>
     </div>
     <script type="module">
-        import { Room } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.10.2/dist/room.js'
+        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.13.1/dist/room.js'
 
-        const room = Room();
+        const room = Room({
+            api : {
+                apiKey: 'YOUR_API_KEY'
+            }
+        });
+
         let roomID = '';
         let clientID = '';
         let peer = null;
@@ -117,7 +122,7 @@
             document.getElementById('info').innerHTML = '';
         }
 
-        room.on(room.event.STREAM_AVAILABLE, ({ stream }) => {
+        room.on(RoomEvent.STREAM_AVAILABLE, ({ stream }) => {
             if (stream.origin === 'local' && stream.source === 'media') return;
 
             const video = document.createElement('video');
@@ -131,7 +136,7 @@
             document.querySelector('main').appendChild(video);
         });
 
-        room.on(room.event.STREAM_REMOVED, ({ stream }) => {
+        room.on(RoomEvent.STREAM_REMOVED, ({ stream }) => {
             const videoElement = document.getElementById(`video-${stream.id}`);
 
             if (videoElement) {
