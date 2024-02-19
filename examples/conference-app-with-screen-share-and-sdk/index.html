@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Conference Room with inLive JavaScript SDK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: sans-serif;
+            font-size: 1rem;
+        }
+
+        #app {
+            padding: 1rem;
+        }
+
+        main {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(576px, 1fr));
+            gap: 1rem;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            background-color: black;
+            border-radius: 0.5rem;
+        }
+
+        aside {
+            margin-top: 2rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        #info {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <main>
+            <video id="local-video" autoplay playsinline muted></video>
+        </main>
+        <aside>
+            <button id="toggle-join-btn">Join</button>
+            <button id="toggle-screen-share" style="display: none;">Turn on screen share</button>
+            <div id="info"></div>
+        </aside>
+    </div>
+    <script type="module">
+        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.14.3/dist/room.js'
+
+        const room = Room({
+            api : {
+                apiKey: 'YOUR_API_KEY'
+            }
+        });
+
+        let roomID = '';
+        let clientID = '';
+        let peer = null;
+        let joinUrl = '';
+        let joined = false;
+        let screenSharing = false;
+
+        document.getElementById('toggle-join-btn').addEventListener('click', async function(event) {
+            if (joined) {
+                await leave();
+                event.target.textContent = 'Join';
+                joined = false;
+                document.getElementById('toggle-screen-share').style.display = 'none';
+
+            } else {
+                await join();
+                event.target.textContent = 'Leave';
+                joined = true;
+                document.getElementById('toggle-screen-share').style.display = 'inline';
+            }
+        });
+
+        document.getElementById('toggle-screen-share').addEventListener('click', async function(event) {
+            if (screenSharing) {
+                await turnOffScreenShare();
+            } else {
+                await turnOnScreenShare();
+            }
+        })
+
+        async function join() {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            }).catch((error) => {
+                console.error(error);
+            });
+
+            document.getElementById('local-video').srcObject = mediaStream;
+
+            roomID = new URL(window.location.href).searchParams.get('roomID');
+
+            if (!roomID) {
+                const newRoom = await room.createRoom('My room');
+                roomID = newRoom.data.roomId;
+            }
+
+            joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
+
+            const client = await room.createClient(roomID);
+            clientID = client.data.clientId;
+
+            peer = await room.createPeer(roomID, clientID);
+            peer.addStream(mediaStream.id, {
+                clientId: clientID,
+                name: 'local camera client',
+                origin: 'local',
+                source: 'media',
+                mediaStream: mediaStream
+            });
+
+            document.getElementById('info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`;
+        }
+
+        async function leave() {
+            await room.leaveRoom(roomID, clientID, false);
+
+            if (screenSharing) {
+                await turnOffScreenShare();
+            }
+
+            peer.disconnect();
+
+            document.getElementById('local-video').srcObject = null;
+            joinUrl = '';
+            document.getElementById('info').innerHTML = '';
+        }
+
+        async function turnOnScreenShare() {
+            try {
+                if (!peer) return false;
+
+                const constraints = {
+                    video: {
+                        displaySurface: 'monitor',
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                    systemAudio: 'exclude',
+                    surfaceSwitching: 'include',
+                    selfBrowserSurface: 'exclude',
+                };
+
+                const mediaStream = await navigator.mediaDevices.getDisplayMedia(
+                    constraints
+                );
+
+                peer.addStream(mediaStream.id, {
+                    clientId: clientID,
+                    name: 'local screen client',
+                    origin: 'local',
+                    source: 'screen',
+                    mediaStream: mediaStream,
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function turnOffScreenShare() {
+            try {
+                const peerConnection = peer?.getPeerConnection();
+
+                if (!peerConnection) return;
+
+                const streams = peer.getAllStreams();
+
+                const screenStreams = streams.filter((stream) => {
+                    return stream.origin === 'local' && stream.source === 'screen';
+                });
+
+                for (const screenStream of screenStreams) {
+                    for (const screenTrack of screenStream.mediaStream.getTracks()) {
+                        for (const transceiver of peerConnection.getTransceivers()) {
+                            if (transceiver.sender.track === screenTrack) {
+                                transceiver.sender.track.stop();
+                                peerConnection.removeTrack(transceiver.sender);
+                                peer.removeStream(screenStream.id);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        room.on(RoomEvent.STREAM_AVAILABLE, ({ stream }) => {
+            if (stream.origin === 'local' && stream.source === 'media') return;
+
+            const video = document.createElement('video');
+            video.playsInline = true;
+            video.muted = false;
+            video.autoplay = true;
+            video.srcObject = stream.mediaStream;
+            video.setAttribute('id', `video-${stream.id}`);
+
+            document.querySelector('main').appendChild(video);
+        });
+
+        room.on(RoomEvent.STREAM_REMOVED, ({ stream }) => {
+            const videoElement = document.getElementById(`video-${stream.id}`);
+
+            if (videoElement) {
+                videoElement.remove();
+            }
+        });
+
+        room.on(RoomEvent.STREAM_AVAILABLE, (data) => {
+            if (data?.stream?.origin !== 'local' || data?.stream?.source !== 'screen') {
+                return;
+            }
+
+            screenSharing = true;
+            document.getElementById('toggle-screen-share').textContent = 'Turn off screen share';
+        });
+
+        room.on(RoomEvent.STREAM_REMOVED, (data) => {
+            if (!peer || data?.stream?.origin !== 'local' || data?.stream?.source !== 'screen') {
+                return;
+            }
+
+            const streams = peer.getAllStreams().filter((stream) => {
+                return stream.origin === 'local' && stream.source === 'screen';
+            });
+
+            if (streams.length === 0) {
+                screenSharing = false;
+                document.getElementById('toggle-screen-share').textContent = 'Turn on screen share';
+            };
+        });
+    </script>
+</body>
+</html>
