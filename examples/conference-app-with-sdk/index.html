@@ -67,13 +67,13 @@
         let joinUrl = '';
         let joined = false;
 
-        document.getElementById('toggle-join-btn').addEventListener('click', function(event) {
+        document.getElementById('toggle-join-btn').addEventListener('click', async function(event) {
             if (joined) {
-                leave();
+                await leave();
                 event.target.textContent = 'Join';
                 joined = false;
             } else {
-                join();
+                await join();
                 event.target.textContent = 'Leave';
                 joined = true;
             }
