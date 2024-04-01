@@ -53,7 +53,7 @@
         </aside>
     </div>
     <script type="module">
-        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.13.1/dist/room.js'
+        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.16.1/dist/room.js'
 
         const room = Room({
             api : {
@@ -93,7 +93,7 @@
 
             if (!roomID) {
                 const newRoom = await room.createRoom('My room');
-                roomID = newRoom.data.roomId;
+                roomID = newRoom.data.id;
             }
 
             joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
