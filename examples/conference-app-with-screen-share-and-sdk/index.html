@@ -54,7 +54,7 @@
         </aside>
     </div>
     <script type="module">
-        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.17.1/dist/room.js'
+        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.17.3/dist/room.js'
 
         const room = Room({
             api : {
@@ -64,6 +64,7 @@
 
         let roomID = '';
         let clientID = '';
+        let clientName = '';
         let peer = null;
         let joinUrl = '';
         let joined = false;
@@ -111,13 +112,20 @@
 
             joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
 
-            const client = await room.createClient(roomID);
+            const random = Date.now().toString(36).slice(-5);
+
+            const client = await room.createClient(roomID, {
+                clientName: `client-${random}`
+            });
+
             clientID = client.data.clientId;
+            clientName = client.data.clientName;
 
             peer = await room.createPeer(roomID, clientID);
+
             peer.addStream(mediaStream.id, {
                 clientId: clientID,
-                name: 'local camera client',
+                name: clientName,
                 origin: 'local',
                 source: 'media',
                 mediaStream: mediaStream
@@ -164,7 +172,7 @@
 
                 peer.addStream(mediaStream.id, {
                     clientId: clientID,
-                    name: 'local screen client',
+                    name: `${clientName} screen`,
                     origin: 'local',
                     source: 'screen',
                     mediaStream: mediaStream,
