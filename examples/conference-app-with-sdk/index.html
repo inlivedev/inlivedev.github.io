@@ -63,6 +63,7 @@
 
         let roomID = '';
         let clientID = '';
+        let clientName = '';
         let peer = null;
         let joinUrl = '';
         let joined = false;
@@ -105,12 +106,13 @@
             });
 
             clientID = client.data.clientId;
+            clientName = client.data.clientName;
 
             peer = await room.createPeer(roomID, clientID);
 
             peer.addStream(mediaStream.id, {
                 clientId: clientID,
-                name: client.data.clientName,
+                name: clientName,
                 origin: 'local',
                 source: 'media',
                 mediaStream: mediaStream
