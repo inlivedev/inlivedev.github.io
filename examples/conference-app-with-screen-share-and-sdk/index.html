@@ -54,13 +54,11 @@
         </aside>
     </div>
     <script type="module">
-        import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.18.0/dist/room.js'
+        import { Room,RoomEvent,createAuth } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.21.3/dist/inlive-js-sdk.js'
 
-        const room = Room({
-            api : {
-                apiKey: 'YOUR_API_KEY'
-            }
-        });
+		const room = Room();
+
+		const apiKey = '';
 
         let roomID = '';
         let clientID = '';
@@ -94,6 +92,18 @@
         })
 
         async function join() {
+			if (apiKey === '') {
+				alert('Please set your API key, you can get it from https://studio.inlive.app');
+				return;
+			}
+
+			const auth = await createAuth({
+				apiKey: apiKey,
+				expirySeconds: 3600,
+			});
+
+			room.setAuth(auth);
+			
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: true,
                 audio: true

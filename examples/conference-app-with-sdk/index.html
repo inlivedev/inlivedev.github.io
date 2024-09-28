@@ -96,11 +96,11 @@
 			}
 
 			const auth = await createAuth({
-			apiKey: apiKey,
-			expirySeconds: 3600,
-		});
+				apiKey: apiKey,
+				expirySeconds: 3600,
+			});
 
-		room.setAuth(auth);
+			room.setAuth(auth);
 
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: true,
