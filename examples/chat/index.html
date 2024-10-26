@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Simple Video Conference Room</title>
+    <title>Simple Chat Example</title>
     <style>
         * {
             margin: 0;
@@ -29,10 +29,22 @@
             width: 100%;
 			height: 100%;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            grid-template-rows: 9fr 1fr;
             gap: 1rem;
-			place-items: center;
+			place-items: bottom;
         }
+
+		main>div{
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		input {
+			padding: 0.5rem;
+			width: 80%;
+			margin: 0.5rem;
+		}
 
         video {
 			width: auto;
@@ -65,9 +77,11 @@
         const apiOrigin = 'https://hub.inlive.app';
 		const tokenAPIOrigin = 'https://api.inlive.app';
         const apiVersion = 'v1'
-		const apiKey = ''
+		const apiKey = '';
         const streams = new Map();
 		let accessToken = null;
+		
+		let chatChannel = null;
 
         let joinUrl = '';
         let peer = null;
@@ -121,25 +135,11 @@
 
             client.id = await registerClient(room.id);
 
-            const mediaStream = await getUserMediaStream({
-                video: true,
-                audio: true
-            });
+            establishPeerConnection(room.id, client.id);
 
-            establishPeerConnection(room.id, client.id, mediaStream);
-            displayUserMediaStream(mediaStream);
             toggleJoinButton();
 
             document.querySelector('#info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
-        }
-
-        async function getUserMediaStream(constraints) {
-            try {
-                const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                return mediaStream;
-            } catch (error) {
-                console.error(error);
-            }
         }
 
         async function createRoom(roomName = '') {
@@ -158,8 +158,33 @@
 
             const newRoom = await response.json();
 
+			createChat(newRoom.data.id);
+
             return newRoom.data;
         }
+
+		async function createChat(roomid) {
+			if (!accessToken) {
+				const token = await createAccessToken();
+				accessToken = token.access_token;
+			}
+
+            const response = await fetch(`${apiOrigin}/${apiVersion}/rooms/${roomid}/channel/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+					'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+					"name": "chat",
+					"ordered_mode": true
+				})
+            })
+
+            const resp = await response.json();
+
+            return resp.data;
+		}
 
         async function registerClient(roomId, uid = Math.floor(Math.random() * 1000)) {
 			if (!accessToken) {
@@ -259,7 +284,7 @@
 			});
 		}
 
-        function establishPeerConnection(roomId, clientId, mediaStream) {
+        function establishPeerConnection(roomId, clientId) {
             peer = new RTCPeerConnection({
                 iceServers: [
                     {
@@ -321,47 +346,82 @@
                 }
             });
 
-            peer.addEventListener('track', (event) => {
-				console.log('track event', event);
-                const mediaStream = event.streams.find((stream) => stream.active === true);
-                const track = event.track;
-
-                if (streams.has(mediaStream.id)) return;
-
-                streams.set(mediaStream.id, mediaStream);
-
-                const video = document.createElement('video');
-                video.classList.add('remote');
-                video.playsInline = true;
-                video.muted = false;
-                video.srcObject = mediaStream;
-                video.play();
-
-                document.querySelector('main').appendChild(video);
-
-                mediaStream.addEventListener('removetrack', (event) => {
-                    const target = event.target;
-
-                    if (streams.has(target.id) && target.getTracks().length === 0) {
-                        video.remove();
-                        streams.delete(target.id);
-                    }
-                });
-
-                track.addEventListener('ended', () => {
-                    video.remove();
-                });
-            });
+            
 
             // this will trigger negotiationneeded event
-            mediaStream.getTracks().forEach((track) => {
-                peer.addTrack(track, mediaStream);
-            });
-        }
+			// we add recvonly because this will be chat only
+			// you don't need to add this if you're sending video or audio
+			// you will use sendrecv or addTrack instead
+            peer.addTransceiver('video', {
+				direction: 'recvonly'
+			});
 
-        function displayUserMediaStream(mediaStream) {
-            const localVideo = document.querySelector('video#local');
-            localVideo.srcObject = mediaStream;
+			peer.addTransceiver('audio', {
+				direction: 'recvonly'
+			});
+
+			// waiting data channel 
+			peer.addEventListener('datachannel', (event) => {
+				if (event.channel.label === 'chat') {
+					console.log('data channel chat is available');
+					chatChannel = event.channel;
+					
+
+					const addMessage = (clientid,message) => {
+						const article = document.querySelector('article');
+						const p = document.createElement('p');
+						p.textContent = `${clientid}: ${message}`;
+						article.appendChild(p);
+					}
+
+					chatChannel.onmessage = (event) => {
+						// handle chat message
+						let receivedString = '';
+						if (event.data instanceof ArrayBuffer) {
+							// If it's an ArrayBuffer, convert it to a string
+							const decoder = new TextDecoder(); // Use TextDecoder to decode
+							receivedString = decoder.decode(event.data);
+						} else if (typeof event.data === 'string') {
+							// If it's already a string, just use it directly
+							console.log("Received string:", event.data);
+							receivedString = event.data;
+						} else {
+							console.log("Received data of type:", typeof event.data);
+						}
+						if (receivedString !== '') {
+							data = JSON.parse(receivedString);
+							addMessage(data.clientid, data.message);
+						}
+					}
+
+					addMessage("You", "Ready to chat");
+
+					const sendChat = () => {
+						const message = document.querySelector('input').value;
+						chatChannel.send(JSON.stringify({
+							clientid:clientId,
+							message: message
+						}));
+						document.querySelector('input').value = '';
+						addMessage("You", message);
+					}
+
+					chatChannel.send(JSON.stringify({
+							clientid:clientId,
+							message: "Joined chat room"
+						}));
+
+					document.querySelector('button').addEventListener('click', async function(event) {
+						sendChat();
+					})
+
+					document.querySelector('input').addEventListener('keypress', async function(event) {
+						if (event.key === 'Enter') {
+							sendChat();
+						}
+					})
+				}
+			});
         }
 
         function toggleJoinButton() {
@@ -393,9 +453,6 @@
                 }
             });
 
-            const localVideo = document.querySelector('video#local');
-            localVideo.srcObject = null;
-
             // when local peer is closed, the ended event will be triggered
             peer.close();
             peer = null;
@@ -415,7 +472,8 @@
 <body>
     <div id="app">
         <main>
-            <video id="local" autoplay playsinline muted></video>
+			<article></article>
+            <div><input id="chat" type="text" placeholder="Enter to send"><button>Send</button></div>
         </main>
         <aside>
             <div>
