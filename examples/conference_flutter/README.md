@@ -1,16 +1,12 @@
-# conferece_flutter
+# Example Inlive Real-time API using Flutter 
 
-A new Flutter project.
+This is not an SDK but an example to create a Flutter app with Inlive Real-time API. This is using other flutter plugins including:
+- [flutter-webrtc](https://pub.dev/packages/flutter_webrtc) for WebRTC connection
+- [flutter-sse-client](https://pub.dev/packages/flutter_client_sse) for Server Sent Event (SSE) client
 
 ## Getting Started
+This example is ready to run app and by default it will use `test` room id means you can use other example like the web version of conference example to connect to the same room.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Get your API key from https://studio.inlive.app
+2. Set the API key in `libs/main.dart` file
+3. Run the app
