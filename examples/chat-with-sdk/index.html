@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Chat Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: sans-serif;
+            font-size: 1rem;
+        }
+
+		body {
+			height:  100vh;
+		}
+
+        #app {
+            padding: 1rem;
+			display: grid;
+			place-items: center;
+			grid-template-rows: 9fr 1fr;
+			height: 100vh;
+        }
+
+        main {
+            width: 100%;
+			height: 100%;
+            display: grid;
+            grid-template-rows: 9fr 1fr;
+            gap: 1rem;
+			place-items: bottom;
+        }
+
+		main>div{
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		input {
+			padding: 0.5rem;
+			width: 80%;
+			margin: 0.5rem;
+		}
+
+        video {
+			width: auto;
+            height: auto;
+            object-fit: cover;
+            background-color: black;
+            border-radius: 0.5rem;
+        }
+
+        aside {
+            margin-top: 2rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        #info {
+            margin-top: 1rem;
+        }
+    </style>
+    <script type="module">
+        import { Room,RoomEvent,createAuth } from 'https://cdn.jsdelivr.net/npm/@inlivedev/inlive-js-sdk@0.21.3/dist/inlive-js-sdk.js'
+
+        const room = Room();
+
+		const apiKey = '';
+       
+        let roomID = '';
+        let clientID = '';
+        let clientName = '';
+        let peer = null;
+        let joinUrl = '';
+        let joined = false;
+        let chatChannel = null;
+
+        document.getElementById('togglejoin').addEventListener('click', async function(event) {
+            if (joined) {
+                await leave();
+                event.target.textContent = 'Join';
+                joined = false;
+            } else {
+                await join();
+                event.target.textContent = 'Leave';
+                joined = true;
+            }
+        });
+
+        function toggleJoin() {
+            if (!joined) {
+                join();
+            } else {
+                leave();
+            }
+        }
+
+        async function join() {
+			if (apiKey === '') {
+				alert('Please set your API key, you can get it from https://studio.inlive.app');
+				return;
+			}
+
+			const auth = await createAuth({
+				apiKey: apiKey,
+				expirySeconds: 3600,
+			});
+
+			room.setAuth(auth);
+
+            roomID = new URL(window.location.href).searchParams.get('roomID');
+
+            if (!roomID) {
+                const newRoom = await room.createRoom('My room');
+                roomID = newRoom.data.id;
+                await room.createDataChannel(roomID, 'chat') 
+            }
+
+            joinUrl = encodeURI(window.location.origin + window.location.pathname + `?roomID=${roomID}`);
+
+            const random = Date.now().toString(36).slice(-5);
+
+            const client = await room.createClient(roomID, {
+                clientName: `client-${random}`
+            });
+
+            clientID = client.data.clientId;
+            clientName = client.data.clientName;
+
+            peer = await room.createPeer(roomID, clientID);
+            
+            const pc = peer.getPeerConnection();
+
+            pc.addEventListener('datachannel', (event) => {
+				if (event.channel.label === 'chat') {
+					console.log('data channel chat is available');
+					chatChannel = event.channel;
+					
+
+					const addMessage = (clientID,message) => {
+						const article = document.querySelector('article');
+						const p = document.createElement('p');
+						p.textContent = `${clientID}: ${message}`;
+						article.appendChild(p);
+					}
+
+					chatChannel.onmessage = (event) => {
+						// handle chat message
+						let receivedString = '';
+						if (event.data instanceof ArrayBuffer) {
+							// If it's an ArrayBuffer, convert it to a string
+							const decoder = new TextDecoder(); // Use TextDecoder to decode
+							receivedString = decoder.decode(event.data);
+						} else if (typeof event.data === 'string') {
+							// If it's already a string, just use it directly
+							console.log("Received string:", event.data);
+							receivedString = event.data;
+						} else {
+							console.log("Received data of type:", typeof event.data);
+						}
+						if (receivedString !== '') {
+							data = JSON.parse(receivedString);
+							addMessage(data.clientid, data.message);
+						}
+					}
+
+					addMessage("You", "Ready to chat");
+
+					const sendChat = () => {
+						const message = document.querySelector('input').value;
+						chatChannel.send(JSON.stringify({
+							clientid:clientID,
+							message: message
+						}));
+						document.querySelector('input').value = '';
+						addMessage("You", message);
+					}
+
+					chatChannel.send(JSON.stringify({
+							clientid:clientID,
+							message: "Joined chat room"
+						}));
+
+					document.querySelector('button').addEventListener('click', async function(event) {
+						sendChat();
+					})
+
+					document.querySelector('input').addEventListener('keypress', async function(event) {
+						if (event.key === 'Enter') {
+							sendChat();
+						}
+					})
+				}
+			});
+
+            await peer.startViewOnly()
+
+            document.querySelector('#info').innerHTML = `Join URL : <a href="${joinUrl}" target="_blank">${joinUrl}</a>`
+            toggleJoinButton();
+        }
+
+        function toggleJoinButton() {
+            const button = document.querySelector('button#togglejoin');
+
+            if (joined) {
+                button.textContent = 'Join';
+                joined = false;
+            } else {
+                button.textContent = 'Leave';
+                joined = true;
+            }
+        }
+
+        async function leave() {
+            await leaveRoom(room.id, client.id);
+            toggleJoinButton();
+        }
+
+        async function leaveRoom(roomId, clientID) {
+            await room.leaveRoom(roomID, clientID, false);
+            peer.disconnect();
+
+            joinUrl = '';
+            document.querySelector('#info').innerHTML = '';
+        }
+
+        async function endRoom(roomId) {
+            fetch(`${apiOrigin}/${apiVersion}/rooms/${roomId}/end`, {
+                method: 'PUT',
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <div id="app">
+        <main>
+			<article></article>
+            <div><input id="chat" type="text" placeholder="Enter to send"><button>Send</button></div>
+        </main>
+        <aside>
+            <div>
+                <button id="togglejoin" >Join</button>
+            </div>
+            <div id="info"></div>
+        </aside>
+    </div>
+</body>
+
+</html>
